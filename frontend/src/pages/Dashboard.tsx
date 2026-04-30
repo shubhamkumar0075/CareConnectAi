@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import api from '../api';
-import { Calendar, User as UserIcon, CheckCircle, XCircle, Clock } from 'lucide-react';
+import { Calendar, CheckCircle, XCircle } from 'lucide-react';
 
 const Dashboard = () => {
   const [appointments, setAppointments] = useState<any[]>([]);
