@@ -19,8 +19,8 @@ const Dashboard = () => {
   const fetchData = async () => {
     try {
       const [apptsRes, docsRes] = await Promise.all([
-        api.get('/appointments'),
-        user.role === 'patient' ? api.get('/auth/doctors') : Promise.resolve({ data: [] })
+        api.get('/api/appointments'),
+        user.role === 'patient' ? api.get('/api/auth/doctors') : Promise.resolve({ data: [] })
       ]);
       setAppointments(apptsRes.data);
       setDoctors(docsRes.data);
@@ -34,7 +34,7 @@ const Dashboard = () => {
   const handleBookAppointment = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await api.post('/appointments', {
+      await api.post('/api/appointments', {
         doctorId: selectedDoctor,
         date: appointmentDate,
         notes
@@ -52,7 +52,7 @@ const Dashboard = () => {
 
   const handleStatusUpdate = async (id: string, status: string) => {
     try {
-      await api.put(`/appointments/${id}/status`, { status });
+      await api.put(`/api/appointments/${id}/status`, { status });
       fetchData();
     } catch (error) {
       console.error('Failed to update status', error);

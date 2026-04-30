@@ -15,7 +15,7 @@ const Register = () => {
     e.preventDefault();
     try {
       const payload = { name, email, password, role, specialization: role === 'doctor' ? specialization : undefined };
-      const res = await api.post('/auth/register', payload);
+      const res = await api.post('/api/auth/register', payload);
       localStorage.setItem('user', JSON.stringify(res.data));
       window.location.href = '/dashboard';
     } catch (err: any) {
