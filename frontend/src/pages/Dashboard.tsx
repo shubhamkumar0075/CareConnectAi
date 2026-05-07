@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import api from '../api';
-import { Calendar, CheckCircle, XCircle } from 'lucide-react';
+import { Calendar, CheckCircle, XCircle, X, AlertCircle } from 'lucide-react';
 
 const Dashboard = () => {
   const [appointments, setAppointments] = useState<any[]>([]);
@@ -9,6 +9,9 @@ const Dashboard = () => {
   const [selectedDoctor, setSelectedDoctor] = useState('');
   const [appointmentDate, setAppointmentDate] = useState('');
   const [notes, setNotes] = useState('');
+  const [showAvailabilityModal, setShowAvailabilityModal] = useState(false);
+  const [availableSlots, setAvailableSlots] = useState<Date[]>([]);
+  const [selectedDoctorName, setSelectedDoctorName] = useState('');
   
   const user = JSON.parse(localStorage.getItem('user') || '{}');
 
@@ -34,19 +37,53 @@ const Dashboard = () => {
   const handleBookAppointment = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await api.post('/api/appointments', {
+      const response = await api.post('/api/appointments', {
         doctorId: selectedDoctor,
         date: appointmentDate,
         notes
       });
-      alert('Appointment booked successfully!');
-      setSelectedDoctor('');
-      setAppointmentDate('');
-      setNotes('');
-      fetchData();
+      
+      if (response.data.doctorBusy === false) {
+        alert('Appointment booked successfully!');
+        setSelectedDoctor('');
+        setAppointmentDate('');
+        setNotes('');
+        fetchData();
+      }
+    } catch (error: any) {
+      if (error.response?.status === 409 && error.response?.data?.doctorBusy) {
+        // Doctor is busy, show available slots
+        const slots = error.response.data.availableSlots.map((slot: string) => new Date(slot));
+        setAvailableSlots(slots);
+        const doctorName = doctors.find(d => d._id === selectedDoctor)?.name;
+        setSelectedDoctorName(doctorName || 'Doctor');
+        setShowAvailabilityModal(true);
+      } else {
+        console.error('Failed to book', error);
+        alert('Failed to book appointment');
+      }
+    }
+  };
+
+  const handleSelectAvailableSlot = async (slot: Date) => {
+    try {
+      const response = await api.post('/api/appointments', {
+        doctorId: selectedDoctor,
+        date: slot.toISOString(),
+        notes
+      });
+      
+      if (response.data.doctorBusy === false) {
+        alert('Appointment booked successfully at ' + new Date(slot).toLocaleString());
+        setShowAvailabilityModal(false);
+        setSelectedDoctor('');
+        setAppointmentDate('');
+        setNotes('');
+        fetchData();
+      }
     } catch (error) {
       console.error('Failed to book', error);
-      alert('Failed to book appointment');
+      alert('Failed to book appointment at this time');
     }
   };
 
@@ -63,6 +100,145 @@ const Dashboard = () => {
 
   return (
     <div>
+      {/* Doctor Availability Modal */}
+      {showAvailabilityModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{
+            backgroundColor: 'var(--bg-secondary)',
+            borderRadius: '8px',
+            padding: '2rem',
+            maxWidth: '500px',
+            width: '90%',
+            boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)'
+          }}>
+            {/* Close Button */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+              <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#f87171' }}>
+                <AlertCircle size={24} /> Doctor Not Available
+              </h3>
+              <button
+                onClick={() => setShowAvailabilityModal(false)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontSize: '1.5rem',
+                  color: 'var(--text-secondary)'
+                }}
+              >
+                <X size={24} />
+              </button>
+            </div>
+
+            {/* Message */}
+            <p style={{ marginBottom: '1.5rem', color: 'var(--text-secondary)' }}>
+              Dr. {selectedDoctorName} is not available at your requested time. Please select one of the available time slots:
+            </p>
+
+            {/* Available Slots */}
+            <div style={{ maxHeight: '300px', overflowY: 'auto', marginBottom: '1.5rem' }}>
+              {availableSlots.length > 0 ? (
+                <div style={{ display: 'grid', gap: '0.75rem' }}>
+                  {availableSlots.map((slot, index) => (
+                    <button
+                      key={index}
+                      onClick={() => handleSelectAvailableSlot(slot)}
+                      style={{
+                        padding: '1rem',
+                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                        border: '1px solid rgba(59, 130, 246, 0.3)',
+                        borderRadius: '6px',
+                        cursor: 'pointer',
+                        color: '#3b82f6',
+                        textAlign: 'left',
+                        transition: 'all 0.2s',
+                        fontWeight: 500
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = 'rgba(59, 130, 246, 0.2)';
+                        e.currentTarget.style.borderColor = 'rgba(59, 130, 246, 0.5)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = 'rgba(59, 130, 246, 0.1)';
+                        e.currentTarget.style.borderColor = 'rgba(59, 130, 246, 0.3)';
+                      }}
+                    >
+                      <Calendar size={16} style={{ display: 'inline-block', marginRight: '0.5rem', verticalAlign: 'middle' }} />
+                      {new Date(slot).toLocaleString()}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <p style={{ color: 'var(--text-secondary)', textAlign: 'center' }}>
+                  No available slots for this doctor today. Please try another date.
+                </p>
+              )}
+            </div>
+
+            {/* Action Buttons */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+              <button
+                onClick={() => setShowAvailabilityModal(false)}
+                style={{
+                  padding: '0.75rem 1rem',
+                  backgroundColor: 'transparent',
+                  border: '1px solid var(--text-secondary)',
+                  borderRadius: '6px',
+                  color: 'var(--text-secondary)',
+                  cursor: 'pointer',
+                  fontWeight: 500,
+                  transition: 'all 0.2s'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = 'transparent';
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  setShowAvailabilityModal(false);
+                  setSelectedDoctor('');
+                  setAppointmentDate('');
+                }}
+                style={{
+                  padding: '0.75rem 1rem',
+                  backgroundColor: 'rgba(59, 130, 246, 0.2)',
+                  border: '1px solid rgba(59, 130, 246, 0.5)',
+                  borderRadius: '6px',
+                  color: '#3b82f6',
+                  cursor: 'pointer',
+                  fontWeight: 500,
+                  transition: 'all 0.2s'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = 'rgba(59, 130, 246, 0.3)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = 'rgba(59, 130, 246, 0.2)';
+                }}
+              >
+                Try Another Date
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <h2 className="text-gradient mb-4">Dashboard Overview</h2>
       
       {user.role === 'patient' && (
